@@ -1,4 +1,5 @@
 export { AboutPage } from "./AboutPage";
+export { AccountPausedPage } from "./AccountPausedPage";
 export { AmenitiesPage } from "./AmenitiesPage";
 export { AnalyticsPage } from "./AnalyticsPage";
 export { BlogPage } from "./BlogPage";
