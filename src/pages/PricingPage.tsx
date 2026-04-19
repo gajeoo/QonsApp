@@ -9,12 +9,13 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
+import { PayPalCheckoutButton } from "@/components/PayPalButton";
 
 const tiers = [
   {
@@ -110,7 +111,7 @@ const faqs = [
   {
     question: "What payment methods do you accept?",
     answer:
-      "We accept all major credit cards (Visa, Mastercard, American Express) through our secure payment processor, Stripe. Enterprise customers can pay via invoice.",
+      "We accept all major credit cards (Visa, Mastercard, American Express) through Stripe, as well as PayPal. Enterprise customers can pay via invoice.",
   },
 ];
 
@@ -121,8 +122,17 @@ export function PricingPage() {
     isAuthenticated ? {} : "skip",
   );
   const createCheckout = useAction(api.stripe.createCheckoutSession);
+  const checkPayPal = useAction(api.paypal.isConfigured);
   const navigate = useNavigate();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [paypalClientId, setPaypalClientId] = useState<string | null>(null);
+  const [showPayPal, setShowPayPal] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    checkPayPal({}).then((r) => {
+      if (r.configured && r.clientId) setPaypalClientId(r.clientId);
+    }).catch(() => {});
+  }, []);
 
   const handleSubscribe = async (plan: "starter" | "pro") => {
     if (!isAuthenticated) {
@@ -259,31 +269,53 @@ export function PricingPage() {
                       Current Plan
                     </Button>
                   ) : (
-                    <Button
-                      size="lg"
-                      className={`w-full ${
-                        tier.featured
-                          ? "bg-teal text-white hover:bg-teal-dark"
-                          : ""
-                      }`}
-                      variant={tier.featured ? "default" : "outline"}
-                      onClick={() =>
-                        handleSubscribe(tier.id as "starter" | "pro")
-                      }
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
+                    <div className="space-y-2">
+                      <Button
+                        size="lg"
+                        className={`w-full ${
+                          tier.featured
+                            ? "bg-teal text-white hover:bg-teal-dark"
+                            : ""
+                        }`}
+                        variant={tier.featured ? "default" : "outline"}
+                        onClick={() =>
+                          handleSubscribe(tier.id as "starter" | "pro")
+                        }
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            {tier.cta}
+                            <ArrowRight className="size-4" />
+                          </>
+                        )}
+                      </Button>
+                      {isAuthenticated && paypalClientId && (
                         <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          {tier.cta}
-                          <ArrowRight className="size-4" />
+                          {!showPayPal[tier.id] ? (
+                            <button
+                              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                              onClick={() => setShowPayPal(prev => ({ ...prev, [tier.id]: true }))}
+                            >
+                              or pay with PayPal
+                            </button>
+                          ) : (
+                            <div className="pt-1">
+                              <PayPalCheckoutButton
+                                plan={tier.id as "starter" | "pro"}
+                                clientId={paypalClientId}
+                                onSuccess={() => navigate("/dashboard")}
+                              />
+                            </div>
+                          )}
                         </>
                       )}
-                    </Button>
+                    </div>
                   )}
                 </div>
               );

@@ -1,3 +1,4 @@
+import { useConvexAuth } from "convex/react";
 import {
   ArrowRight,
   BarChart3,
@@ -110,6 +111,7 @@ const testimonials = [
 ];
 
 export function LandingPage() {
+  const { isAuthenticated } = useConvexAuth();
   return (
     <div className="flex-1 flex flex-col">
       {/* Hero Section */}
@@ -138,16 +140,30 @@ export function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-            <Button
-              size="lg"
-              className="text-base h-12 px-8 bg-teal text-white hover:bg-teal-dark"
-              asChild
-            >
-              <Link to="/contact">
-                Start Free Trial
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
+            {!isAuthenticated && (
+              <Button
+                size="lg"
+                className="text-base h-12 px-8 bg-teal text-white hover:bg-teal-dark"
+                asChild
+              >
+                <Link to="/signup">
+                  Start Free Trial
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            )}
+            {isAuthenticated && (
+              <Button
+                size="lg"
+                className="text-base h-12 px-8 bg-teal text-white hover:bg-teal-dark"
+                asChild
+              >
+                <Link to="/dashboard">
+                  Go to Dashboard
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            )}
             <Button
               size="lg"
               variant="outline"
@@ -467,16 +483,30 @@ export function LandingPage() {
               Get full access to every QonsApp feature free for 14 days. No credit card required.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              <Button
-                size="lg"
-                className="text-base h-12 px-8 bg-teal text-white hover:bg-teal-dark"
-                asChild
-              >
-                <Link to="/contact">
-                  Start Free Trial
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
+              {!isAuthenticated && (
+                <Button
+                  size="lg"
+                  className="text-base h-12 px-8 bg-teal text-white hover:bg-teal-dark"
+                  asChild
+                >
+                  <Link to="/signup">
+                    Start Free Trial
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              )}
+              {isAuthenticated && (
+                <Button
+                  size="lg"
+                  className="text-base h-12 px-8 bg-teal text-white hover:bg-teal-dark"
+                  asChild
+                >
+                  <Link to="/dashboard">
+                    Go to Dashboard
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              )}
               <Button
                 size="lg"
                 variant="outline"

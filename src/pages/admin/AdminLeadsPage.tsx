@@ -1,10 +1,12 @@
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Check,
   Clock,
   Mail,
   MessageSquare,
+  Reply,
   Search,
+  Send,
   StickyNote,
   UserPlus,
   X,
@@ -50,6 +52,9 @@ export function AdminLeadsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [noteDialogLead, setNoteDialogLead] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [replyDialogLead, setReplyDialogLead] = useState<any | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   const leads = useQuery(
     api.leads.list,
@@ -60,6 +65,7 @@ export function AdminLeadsPage() {
   const leadStats = useQuery(api.leads.getStats);
   const updateStatus = useMutation(api.leads.updateStatus);
   const addNote = useMutation(api.leads.addNote);
+  const sendReplyEmail = useAction(api.leads.sendReplyEmail);
 
   const filteredLeads = leads?.filter((lead) => {
     if (!searchQuery) return true;
@@ -261,6 +267,17 @@ export function AdminLeadsPage() {
                         </Button>
                       )}
                       <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setReplyDialogLead(lead);
+                          setReplyText("");
+                        }}
+                      >
+                        <Reply className="size-3.5" />
+                        Reply
+                      </Button>
+                      <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
@@ -290,6 +307,78 @@ export function AdminLeadsPage() {
           })
         )}
       </div>
+
+      {/* Reply Dialog */}
+      <Dialog
+        open={!!replyDialogLead}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReplyDialogLead(null);
+            setReplyText("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="size-4 text-teal" />
+              Reply to {replyDialogLead?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {replyDialogLead && (
+            <div className="space-y-3">
+              <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                <p className="text-xs text-muted-foreground mb-1">Original message from <strong>{replyDialogLead.email}</strong>:</p>
+                <p className="text-muted-foreground">{replyDialogLead.message || "No message"}</p>
+              </div>
+              <Textarea
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Type your reply..."
+                className="min-h-[150px]"
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setReplyDialogLead(null);
+                    setReplyText("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!replyText.trim() || sendingReply}
+                  onClick={async () => {
+                    if (!replyDialogLead || !replyText.trim()) return;
+                    setSendingReply(true);
+                    try {
+                      const result = await sendReplyEmail({
+                        leadId: replyDialogLead._id,
+                        replyMessage: replyText.trim(),
+                      });
+                      if (result.success) {
+                        toast.success(`Reply sent to ${replyDialogLead.email}`);
+                        setReplyDialogLead(null);
+                        setReplyText("");
+                      } else {
+                        toast.error(result.error || "Failed to send reply");
+                      }
+                    } catch {
+                      toast.error("Failed to send reply");
+                    } finally {
+                      setSendingReply(false);
+                    }
+                  }}
+                >
+                  {sendingReply ? "Sending..." : "Send Reply"}
+                  {!sendingReply && <Send className="size-3.5" />}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Note Dialog */}
       <Dialog
