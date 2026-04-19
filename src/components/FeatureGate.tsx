@@ -1,0 +1,100 @@
+import { Lock, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "./ui/button";
+import { Card, CardContent } from "./ui/card";
+import { useFeatureAccess, FEATURE_REQUIRED_PLAN } from "@/hooks/useFeatureAccess";
+
+interface FeatureGateProps {
+  feature: string;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+/**
+ * Wraps content that requires a specific feature. Shows upgrade prompt if user lacks access.
+ */
+export function FeatureGate({ feature, children, fallback }: FeatureGateProps) {
+  const { hasFeature, isLoading, hasAccess } = useFeatureAccess();
+
+  if (isLoading) return null;
+
+  // If they have access to this specific feature, show content
+  if (hasFeature(feature)) {
+    return <>{children}</>;
+  }
+
+  // If custom fallback, show that
+  if (fallback) return <>{fallback}</>;
+
+  const requiredPlan = FEATURE_REQUIRED_PLAN[feature] || "Starter";
+
+  return (
+    <div className="flex items-center justify-center min-h-[400px] p-8">
+      <Card className="max-w-md w-full border-dashed">
+        <CardContent className="pt-8 pb-6 text-center">
+          <div className="mx-auto size-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Lock className="size-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Feature Locked</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            This feature requires the <strong>{requiredPlan}</strong> plan or higher.
+            {!hasAccess && " Your free trial has ended."}
+          </p>
+          <Button className="bg-teal text-white hover:bg-teal/90" asChild>
+            <Link to="/pricing">
+              <Sparkles className="size-4" /> Upgrade Plan
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * Trial banner shown at top of dashboard when user is on trial
+ */
+export function TrialBanner() {
+  const { isOnTrial, trialDaysRemaining, hasAccess, currentPlan } = useFeatureAccess();
+
+  if (!isOnTrial && hasAccess) return null;
+
+  if (!hasAccess && currentPlan === "none") {
+    // Trial expired
+    return (
+      <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex items-center justify-between gap-4">
+        <div>
+          <p className="font-semibold text-destructive text-sm">Your free trial has ended</p>
+          <p className="text-xs text-destructive/70 mt-0.5">Subscribe to a plan to continue using all features</p>
+        </div>
+        <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 shrink-0" asChild>
+          <Link to="/pricing">Choose a Plan</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (isOnTrial) {
+    const isUrgent = trialDaysRemaining <= 3;
+    return (
+      <div className={`rounded-xl p-4 flex items-center justify-between gap-4 ${isUrgent ? "bg-amber-50 border border-amber-200" : "bg-teal/5 border border-teal/20"}`}>
+        <div className="flex items-center gap-3">
+          <div className={`size-9 rounded-lg flex items-center justify-center ${isUrgent ? "bg-amber-100" : "bg-teal/10"}`}>
+            <Sparkles className={`size-4 ${isUrgent ? "text-amber-600" : "text-teal"}`} />
+          </div>
+          <div>
+            <p className={`font-semibold text-sm ${isUrgent ? "text-amber-800" : "text-foreground"}`}>
+              Free Trial — {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""} remaining
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">You have full access to all features during your trial</p>
+          </div>
+        </div>
+        <Button size="sm" className="bg-teal text-white hover:bg-teal/90 shrink-0" asChild>
+          <Link to="/pricing">Choose a Plan</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return null;
+}
