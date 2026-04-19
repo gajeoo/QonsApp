@@ -9,6 +9,7 @@ import { Toaster } from "./components/ui/sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import {
   AboutPage,
+  AccountPausedPage,
   AdminDashboardPage,
   AdminLeadsPage,
   AdminSubscribersPage,
@@ -58,6 +59,9 @@ function App() {
 
           {/* Authenticated pages */}
           <Route element={<ProtectedRoute />}>
+            {/* Account paused - trial expired, no subscription */}
+            <Route path="/account-paused" element={<AccountPausedPage />} />
+
             {/* Checkout success - public layout for clean look */}
             <Route element={<PublicLayout />}>
               <Route

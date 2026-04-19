@@ -3,6 +3,7 @@ import {
   AlertTriangle, Bot, Calendar, ChevronLeft, ChevronRight, Clock,
   Loader2, Plus, Sparkles, Trash2, X, Zap,
 } from "lucide-react";
+import { FeatureGate } from "@/components/FeatureGate";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,7 @@ export function SchedulePage() {
   const getStaffName = (id?: Id<"staff">) => id ? staffList.find((s) => s._id === id)?.name || "Unknown" : null;
 
   return (
+    <FeatureGate feature="schedule">
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -258,5 +260,6 @@ export function SchedulePage() {
         </DialogContent>
       </Dialog>
     </div>
+    </FeatureGate>
   );
 }
