@@ -77,6 +77,7 @@ const workerNavItems = [
 const adminNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/leads", label: "Leads", icon: MessageSquare },
+  { href: "/admin/chat", label: "Chat Management", icon: MessageSquare },
   { href: "/admin/subscribers", label: "Subscribers", icon: CreditCard },
   { href: "/admin/users", label: "Users", icon: UsersRound },
 ];
@@ -131,7 +132,7 @@ function SidebarNav() {
   const navItems = role === "worker" ? workerNavItems : customerNavItems;
 
   return (
-    <SidebarContent>
+    <SidebarContent className="overflow-y-auto">
       <SidebarGroup>
         <SidebarGroupLabel className="flex items-center justify-between">
           <span>Operations</span>
@@ -194,7 +195,7 @@ function SidebarUserMenu() {
   const { setOpenMobile } = useSidebar();
 
   return (
-    <SidebarFooter className="border-t border-sidebar-border">
+    <SidebarFooter className="border-t border-sidebar-border shrink-0">
       <SidebarMenu>
         <SidebarMenuItem>
           <DropdownMenu>
@@ -256,7 +257,7 @@ function SidebarHeaderContent() {
   const { setOpenMobile } = useSidebar();
 
   return (
-    <SidebarHeader className="border-b border-sidebar-border">
+    <SidebarHeader className="border-b border-sidebar-border shrink-0">
       <Link
         to="/"
         onClick={() => setOpenMobile(false)}

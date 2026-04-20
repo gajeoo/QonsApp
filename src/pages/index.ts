@@ -23,6 +23,7 @@ export { TeamPage } from "./TeamPage";
 export { TimeTrackingPage } from "./TimeTrackingPage";
 
 // Admin pages
+export { default as AdminChatPage } from "./admin/AdminChatPage";
 export { AdminDashboardPage } from "./admin/AdminDashboardPage";
 export { AdminLeadsPage } from "./admin/AdminLeadsPage";
 export { AdminSubscribersPage } from "./admin/AdminSubscribersPage";

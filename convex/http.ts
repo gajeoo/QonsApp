@@ -124,4 +124,47 @@ async function verifyStripeSignature(
   }
 }
 
+// Admin endpoint to configure PayPal credentials in database
+// Secured with CONVEX_DEPLOY_KEY or a shared secret
+http.route({
+  path: "/api/configure-paypal",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    try {
+      const authHeader = req.headers.get("Authorization");
+      const expectedSecret = process.env.ADMIN_API_SECRET || process.env.VIKTOR_SPACES_PROJECT_SECRET;
+      
+      if (!authHeader || !expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { 
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const body = await req.json() as { clientId: string; clientSecret: string; mode: string };
+      
+      if (!body.clientId || !body.clientSecret) {
+        return new Response(JSON.stringify({ error: "Missing clientId or clientSecret" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      await ctx.runMutation(internal.paypal._upsertSetting, { key: "PAYPAL_CLIENT_ID", value: body.clientId });
+      await ctx.runMutation(internal.paypal._upsertSetting, { key: "PAYPAL_CLIENT_SECRET", value: body.clientSecret });
+      await ctx.runMutation(internal.paypal._upsertSetting, { key: "PAYPAL_MODE", value: body.mode || "live" });
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: any) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }),
+});
+
 export default http;

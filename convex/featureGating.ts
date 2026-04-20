@@ -3,89 +3,26 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 
 /**
- * Feature access definitions per plan.
- * "trial" gets access to ALL features for 14 days.
+ * Single-tier plan: $49.99/mo with ALL features
  */
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    "properties",       // Up to 25 properties
-    "staff",            // Staff management
-    "schedule",         // AI scheduling
-    "time_tracking",    // GPS time tracking
-    "payroll_csv",      // Payroll CSV export
-    "basic_analytics",  // Basic analytics
-    "dashboard",        // Dashboard
-    "residents",        // Resident management
-  ],
-  pro: [
-    "properties",        // Up to 150 properties
-    "staff",
-    "schedule",
-    "time_tracking",
-    "payroll_csv",
-    "payroll_integrations", // ADP, Paychex, QuickBooks
-    "basic_analytics",
-    "executive_analytics",  // Executive dashboards
-    "amenities",            // Amenity booking
-    "dashboard",
-    "custom_reports",
-    "api_access",
-    "team_management",      // Invite workers/managers
-    "residents",            // Resident management
-    "shift_swaps",          // Shift swap requests
-  ],
-  enterprise: [
-    "properties",           // Unlimited
-    "staff",
-    "schedule",
-    "time_tracking",
-    "payroll_csv",
-    "payroll_integrations",
-    "basic_analytics",
-    "executive_analytics",
-    "amenities",
-    "hoa",                  // HOA management suite
-    "dashboard",
-    "custom_reports",
-    "api_access",
-    "team_management",
-    "white_label",
-    "dedicated_support",
-    "residents",
-    "shift_swaps",
-    "reserve_fund",
-  ],
-  trial: [
-    // Trial gets EVERYTHING
-    "properties", "staff", "schedule", "time_tracking",
-    "payroll_csv", "payroll_integrations", "basic_analytics",
-    "executive_analytics", "amenities", "hoa", "dashboard",
-    "custom_reports", "api_access", "team_management",
-    "white_label", "dedicated_support", "residents",
-    "shift_swaps", "reserve_fund",
-  ],
-  admin: [
-    // Admin gets EVERYTHING
-    "properties", "staff", "schedule", "time_tracking",
-    "payroll_csv", "payroll_integrations", "basic_analytics",
-    "executive_analytics", "amenities", "hoa", "dashboard",
-    "custom_reports", "api_access", "team_management",
-    "white_label", "dedicated_support", "admin_panel",
-    "residents", "shift_swaps", "reserve_fund",
-  ],
-};
+const ALL_FEATURES = [
+  "properties", "staff", "schedule", "time_tracking",
+  "payroll_csv", "payroll_integrations", "basic_analytics",
+  "executive_analytics", "amenities", "hoa", "dashboard",
+  "custom_reports", "api_access", "team_management",
+  "residents", "shift_swaps", "reserve_fund", "tasks",
+];
 
-// Property limits per plan
-const PROPERTY_LIMITS: Record<string, number> = {
-  starter: 25,
-  pro: 150,
-  enterprise: 999999,
-  trial: 999999,
-  admin: 999999,
+const PLAN_FEATURES: Record<string, string[]> = {
+  starter: ALL_FEATURES,
+  pro: ALL_FEATURES,
+  enterprise: ALL_FEATURES,
+  trial: ALL_FEATURES,
+  admin: [...ALL_FEATURES, "admin_panel"],
 };
 
 /**
- * Get the effective plan for the current user (considering trial, subscription, role)
+ * Get the effective plan for the current user
  */
 export const getEffectivePlan = query({
   args: {},
@@ -98,6 +35,7 @@ export const getEffectivePlan = query({
       trialDaysRemaining: v.number(),
       hasAccess: v.boolean(),
       role: v.string(),
+      isSubAccount: v.optional(v.boolean()),
     }),
     v.null(),
   ),
@@ -116,19 +54,47 @@ export const getEffectivePlan = query({
       return {
         plan: "admin",
         features: PLAN_FEATURES.admin,
-        propertyLimit: PROPERTY_LIMITS.admin,
+        propertyLimit: 999999,
         isOnTrial: false,
         trialDaysRemaining: 0,
         hasAccess: true,
         role: "admin",
+        isSubAccount: false,
       };
     }
 
-    // Workers/managers inherit from org
-    let effectiveUserId = userId;
-    if ((profile.role === "worker" || profile.role === "manager") && profile.organizationUserId) {
-      effectiveUserId = profile.organizationUserId;
+    // Sub-account check
+    const isSubAccount =
+      (profile.role === "worker" || profile.role === "manager") &&
+      !!profile.organizationUserId;
+
+    // Deactivated sub-accounts have no access
+    if (isSubAccount && profile.isActive === false) {
+      return {
+        plan: "none",
+        features: ["dashboard"],
+        propertyLimit: 0,
+        isOnTrial: false,
+        trialDaysRemaining: 0,
+        hasAccess: false,
+        role: profile.role,
+        isSubAccount: true,
+      };
     }
+
+    // Workers/managers inherit from org owner
+    let effectiveUserId = userId;
+    if (isSubAccount) {
+      effectiveUserId = profile.organizationUserId!;
+    }
+
+    // Apply per-member restrictions if set by manager
+    const applyMemberRestrictions = (planFeatures: string[]): string[] => {
+      if (!isSubAccount || !profile.allowedFeatures || profile.allowedFeatures.length === 0) {
+        return planFeatures;
+      }
+      return planFeatures.filter((f) => profile.allowedFeatures!.includes(f));
+    };
 
     // Check subscription
     const sub = await ctx.db
@@ -138,19 +104,20 @@ export const getEffectivePlan = query({
       .first();
 
     if (sub && (sub.status === "active" || sub.status === "trialing")) {
-      const plan = sub.plan;
+      const features = applyMemberRestrictions(ALL_FEATURES);
       return {
-        plan,
-        features: PLAN_FEATURES[plan] || [],
-        propertyLimit: PROPERTY_LIMITS[plan] || 25,
+        plan: "premium",
+        features,
+        propertyLimit: 999999,
         isOnTrial: false,
         trialDaysRemaining: 0,
         hasAccess: true,
         role: profile.role,
+        isSubAccount,
       };
     }
 
-    // Check trial — use the effective user's profile for trial dates
+    // Check trial
     let trialProfile = profile;
     if (effectiveUserId !== userId) {
       const orgProfile = await ctx.db
@@ -164,18 +131,20 @@ export const getEffectivePlan = query({
     const trialEnd = trialProfile.trialEndDate || 0;
     if (trialEnd > now) {
       const daysRemaining = Math.ceil((trialEnd - now) / (24 * 60 * 60 * 1000));
+      const features = applyMemberRestrictions(ALL_FEATURES);
       return {
         plan: "trial",
-        features: PLAN_FEATURES.trial,
-        propertyLimit: PROPERTY_LIMITS.trial,
+        features,
+        propertyLimit: 999999,
         isOnTrial: true,
         trialDaysRemaining: daysRemaining,
         hasAccess: true,
         role: profile.role,
+        isSubAccount,
       };
     }
 
-    // No access — trial expired, no subscription
+    // No access
     return {
       plan: "none",
       features: ["dashboard"],
@@ -184,12 +153,13 @@ export const getEffectivePlan = query({
       trialDaysRemaining: 0,
       hasAccess: false,
       role: profile.role,
+      isSubAccount,
     };
   },
 });
 
 /**
- * Map route paths to features for frontend gating
+ * Route-to-feature mapping
  */
 export const ROUTE_FEATURE_MAP: Record<string, string> = {
   "/properties": "properties",
@@ -202,4 +172,6 @@ export const ROUTE_FEATURE_MAP: Record<string, string> = {
   "/hoa": "hoa",
   "/dashboard": "dashboard",
   "/settings": "dashboard",
+  "/tasks": "tasks",
+  "/residents": "residents",
 };

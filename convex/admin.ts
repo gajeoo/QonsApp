@@ -1,6 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 
 const ADMIN_EMAIL = "gajeo21@gmail.com";
 const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
@@ -137,7 +137,9 @@ export const getTrialStatus = query({
 });
 
 /**
- * Ensure user profile exists + start trial for new users
+ * Ensure user profile exists + start trial for new users.
+ * Invited users (workers/managers) do NOT get a trial — they're sub-accounts
+ * tied to the inviter's organization and inherit that subscription.
  */
 export const ensureProfile = mutation({
   args: {},
@@ -156,16 +158,43 @@ export const ensureProfile = mutation({
     if (!user?.email) return null;
 
     const isAdminEmail = user.email === ADMIN_EMAIL;
+
+    // Check if this user has a pending or recently-accepted invitation
+    const pendingInvite = await ctx.db
+      .query("invitations")
+      .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "pending"),
+          q.eq(q.field("status"), "accepted"),
+        ),
+      )
+      .first();
+
     const now = Date.now();
 
-    await ctx.db.insert("userProfiles", {
-      userId,
-      email: user.email,
-      role: isAdminEmail ? "admin" : "customer",
-      trialStartDate: isAdminEmail ? undefined : now,
-      trialEndDate: isAdminEmail ? undefined : now + TRIAL_DURATION_MS,
-      isActive: true,
-    });
+    if (pendingInvite && !isAdminEmail) {
+      // Invited user → sub-account, NO trial, linked to org
+      await ctx.db.insert("userProfiles", {
+        userId,
+        email: user.email,
+        role: pendingInvite.role,
+        invitedBy: pendingInvite.invitedByUserId,
+        organizationUserId: pendingInvite.invitedByUserId,
+        isActive: true,
+        // No trialStartDate or trialEndDate — they inherit from org
+      });
+    } else {
+      // Independent user → gets a 14-day trial
+      await ctx.db.insert("userProfiles", {
+        userId,
+        email: user.email,
+        role: isAdminEmail ? "admin" : "customer",
+        trialStartDate: isAdminEmail ? undefined : now,
+        trialEndDate: isAdminEmail ? undefined : now + TRIAL_DURATION_MS,
+        isActive: true,
+      });
+    }
 
     return null;
   },
@@ -558,5 +587,28 @@ export const setRole = internalMutation({
       }
     }
     return null;
+  },
+});
+
+// Internal query for other modules to check user profile
+export const getProfileInternal = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.union(
+    v.object({
+      role: v.string(),
+      email: v.string(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, { userId }) => {
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile) return null;
+    return {
+      role: profile.role,
+      email: profile.email,
+    };
   },
 });

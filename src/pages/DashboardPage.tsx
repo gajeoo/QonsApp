@@ -48,7 +48,8 @@ export function DashboardPage() {
     if (user) { ensureProfile().catch(() => {}); }
   }, [user, ensureProfile]);
 
-  const hasSubscription = subscription && subscription.status === "active";
+  const hasSubscription = subscription && (subscription.status === "active" || subscription.status === "trialing");
+
   const onboardingComplete = onboarding?.completed === true;
 
   const setupSteps = [
@@ -88,7 +89,7 @@ export function DashboardPage() {
           Welcome{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
         </h1>
         <p className="text-muted-foreground mt-1">
-          {hasSubscription ? "Manage your QonsApp operations from here" : "Get started with QonsApp — choose a plan to unlock all features"}
+          {hasSubscription ? "Manage your QonsApp operations from here" : "Get started with QonsApp"}
         </p>
       </div>
 

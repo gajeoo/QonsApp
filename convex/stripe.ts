@@ -5,18 +5,17 @@ import { internal } from "./_generated/api";
 
 declare const process: { env: Record<string, string | undefined> };
 
-// Plan configuration
-// Price IDs from Stripe (test mode) — these are public identifiers, not secrets
+// Plan configuration — single premium tier at $49.99/mo
 const PLANS = {
   starter: {
-    name: "Starter",
+    name: "QuonsApp Premium",
     priceId: process.env.STRIPE_PRICE_STARTER || "price_1TNQm3HNPILwM73cSjWRwYac",
-    monthlyAmount: 4900, // $49.00
+    monthlyAmount: 4999, // $49.99
   },
   pro: {
-    name: "Professional",
-    priceId: process.env.STRIPE_PRICE_PRO || "price_1TNQv5HNPILwM73cCmTuRhyA",
-    monthlyAmount: 14900, // $149.00
+    name: "QuonsApp Premium",
+    priceId: process.env.STRIPE_PRICE_PRO || "price_1TNQm3HNPILwM73cSjWRwYac",
+    monthlyAmount: 4999, // $49.99
   },
 } as const;
 
@@ -29,7 +28,8 @@ async function stripeRequest(
   body?: Record<string, string>,
 ): Promise<Response> {
   // Use env var if set, otherwise fall back to test key
-  const secretKey = process.env.STRIPE_SECRET_KEY || "YOUR_STRIPE_SECRET_KEY";
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) throw new Error("STRIPE_SECRET_KEY environment variable is required");
   if (!secretKey) throw new Error("Stripe is not configured yet");
 
   const options: RequestInit = {
@@ -200,7 +200,7 @@ export const getConfig = action({
   }),
   handler: async () => {
     return {
-      isConfigured: !!(process.env.STRIPE_SECRET_KEY || "YOUR_STRIPE_SECRET_KEY"),
+      isConfigured: !!process.env.STRIPE_SECRET_KEY,
       hasStarterPrice: !!PLANS.starter.priceId,
       hasProPrice: !!PLANS.pro.priceId,
     };

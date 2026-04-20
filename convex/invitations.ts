@@ -288,6 +288,7 @@ export const getMyTeam = query({
       role: v.union(v.literal("admin"), v.literal("customer"), v.literal("manager"), v.literal("worker")),
       isActive: v.boolean(),
       joinedAt: v.number(),
+      allowedFeatures: v.optional(v.array(v.string())),
     }),
   ),
   handler: async (ctx) => {
@@ -310,8 +311,110 @@ export const getMyTeam = query({
           role: member.role,
           isActive: member.isActive !== false,
           joinedAt: member._creationTime,
+          allowedFeatures: member.allowedFeatures ?? undefined,
         };
       }),
     );
+  },
+});
+
+/**
+ * Update which features a team member can access.
+ * Only the org owner (or admin) can do this.
+ * Pass empty array or null to grant full plan access (no restrictions).
+ */
+export const updateTeamMemberFeatures = mutation({
+  args: {
+    memberProfileId: v.id("userProfiles"),
+    allowedFeatures: v.union(v.array(v.string()), v.null()),
+  },
+  returns: v.object({ success: v.boolean(), error: v.optional(v.string()) }),
+  handler: async (ctx, { memberProfileId, allowedFeatures }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { success: false, error: "Not authenticated" };
+
+    const callerProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (!callerProfile) return { success: false, error: "Profile not found" };
+
+    const member = await ctx.db.get(memberProfileId);
+    if (!member) return { success: false, error: "Member not found" };
+
+    // Only the org owner or admin can update member features
+    if (member.organizationUserId !== userId && callerProfile.role !== "admin") {
+      return { success: false, error: "Not authorized" };
+    }
+
+    await ctx.db.patch(memberProfileId, {
+      allowedFeatures: allowedFeatures && allowedFeatures.length > 0 ? allowedFeatures : undefined,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Toggle a team member's active status.
+ * Only the org owner (or admin) can do this.
+ */
+export const toggleTeamMemberActive = mutation({
+  args: {
+    memberProfileId: v.id("userProfiles"),
+    isActive: v.boolean(),
+  },
+  returns: v.object({ success: v.boolean(), error: v.optional(v.string()) }),
+  handler: async (ctx, { memberProfileId, isActive }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { success: false, error: "Not authenticated" };
+
+    const callerProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (!callerProfile) return { success: false, error: "Profile not found" };
+
+    const member = await ctx.db.get(memberProfileId);
+    if (!member) return { success: false, error: "Member not found" };
+
+    if (member.organizationUserId !== userId && callerProfile.role !== "admin") {
+      return { success: false, error: "Not authorized" };
+    }
+
+    await ctx.db.patch(memberProfileId, { isActive });
+    return { success: true };
+  },
+});
+
+/**
+ * Update a team member's role.
+ * Only the org owner (or admin) can do this.
+ */
+export const updateTeamMemberRole = mutation({
+  args: {
+    memberProfileId: v.id("userProfiles"),
+    role: v.union(v.literal("manager"), v.literal("worker")),
+  },
+  returns: v.object({ success: v.boolean(), error: v.optional(v.string()) }),
+  handler: async (ctx, { memberProfileId, role }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { success: false, error: "Not authenticated" };
+
+    const callerProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (!callerProfile) return { success: false, error: "Profile not found" };
+
+    const member = await ctx.db.get(memberProfileId);
+    if (!member) return { success: false, error: "Member not found" };
+
+    if (member.organizationUserId !== userId && callerProfile.role !== "admin") {
+      return { success: false, error: "Not authorized" };
+    }
+
+    await ctx.db.patch(memberProfileId, { role });
+    return { success: true };
   },
 });

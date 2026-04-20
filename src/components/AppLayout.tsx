@@ -4,7 +4,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "./ui/sidebar";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 export function AppLayout() {
-  const { hasAccess, isLoading, currentPlan, role } = useFeatureAccess();
+  const { hasAccess, isLoading, currentPlan, role, isSubAccount } = useFeatureAccess();
   const location = useLocation();
 
   // Wait until feature access is loaded
@@ -12,15 +12,15 @@ export function AppLayout() {
     return null;
   }
 
-  // If trial expired and no plan, redirect to account-paused page
+  // If no access, redirect to account-paused page
   // Admins are exempt — they always have access
-  // Allow settings page access so users can manage their account
-  // Allow pricing page access so they can subscribe
+  // Allow settings page for independent users to manage their account
+  // Sub-accounts don't get settings exemption (they can't subscribe themselves)
   if (
     !hasAccess &&
     currentPlan === "none" &&
     role !== "admin" &&
-    location.pathname !== "/settings"
+    (isSubAccount || location.pathname !== "/settings")
   ) {
     return <Navigate to="/account-paused" replace />;
   }

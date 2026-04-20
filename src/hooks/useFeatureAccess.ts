@@ -1,7 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
-// Route-to-feature mapping (mirrors backend)
 const ROUTE_FEATURE_MAP: Record<string, string> = {
   "/properties": "properties",
   "/staff": "staff",
@@ -13,31 +12,18 @@ const ROUTE_FEATURE_MAP: Record<string, string> = {
   "/hoa": "hoa",
   "/dashboard": "dashboard",
   "/settings": "dashboard",
+  "/tasks": "tasks",
+  "/residents": "residents",
 };
 
-// Friendly names for features per plan
 export const PLAN_LABELS: Record<string, string> = {
-  starter: "Starter",
-  pro: "Professional",
-  enterprise: "Enterprise",
+  premium: "Premium",
+  starter: "Premium",
+  pro: "Premium",
+  enterprise: "Premium",
   trial: "Free Trial",
   admin: "Admin",
   none: "No Plan",
-};
-
-// Which plan is needed to unlock a feature
-export const FEATURE_REQUIRED_PLAN: Record<string, string> = {
-  properties: "Starter",
-  staff: "Starter",
-  schedule: "Starter",
-  time_tracking: "Starter",
-  payroll_csv: "Starter",
-  basic_analytics: "Starter",
-  payroll_integrations: "Professional",
-  executive_analytics: "Professional",
-  amenities: "Professional",
-  team_management: "Professional",
-  hoa: "Enterprise",
 };
 
 export function useFeatureAccess() {
@@ -50,12 +36,12 @@ export function useFeatureAccess() {
 
   const hasRouteAccess = (path: string): boolean => {
     const feature = ROUTE_FEATURE_MAP[path];
-    if (!feature) return true; // Unknown routes are accessible
+    if (!feature) return true;
     return hasFeature(feature);
   };
 
-  const getRequiredPlan = (feature: string): string => {
-    return FEATURE_REQUIRED_PLAN[feature] || "Starter";
+  const getRequiredPlan = (_feature: string): string => {
+    return "Premium";
   };
 
   return {
@@ -69,6 +55,7 @@ export function useFeatureAccess() {
     role: plan?.role ?? "customer",
     propertyLimit: plan?.propertyLimit ?? 0,
     features: plan?.features ?? [],
+    isSubAccount: plan?.isSubAccount ?? false,
     hasFeature,
     hasRouteAccess,
     getRequiredPlan,

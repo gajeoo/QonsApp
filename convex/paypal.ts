@@ -1,6 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 declare const process: { env: Record<string, string | undefined> };
@@ -15,17 +15,71 @@ const PLAN_NAMES: Record<string, string> = {
   pro: "Professional Plan",
 };
 
+// ========== Internal helpers to read config from DB ==========
+
+export const _getSettingByKey = internalQuery({
+  args: { key: v.string() },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, { key }) => {
+    const setting = await ctx.db
+      .query("appSettings")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .first();
+    return setting?.value ?? null;
+  },
+});
+
+export const _upsertSetting = internalMutation({
+  args: { key: v.string(), value: v.string() },
+  handler: async (ctx, { key, value }) => {
+    const existing = await ctx.db
+      .query("appSettings")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { value, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("appSettings", { key, value, updatedAt: Date.now() });
+    }
+  },
+});
+
 /**
- * Helper: get PayPal access token
+ * Get PayPal credentials — env vars first, then database fallback
  */
-async function getPayPalAccessToken(): Promise<string> {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+async function getPayPalCredentials(ctx: any): Promise<{
+  clientId: string;
+  clientSecret: string;
+  mode: string;
+}> {
+  let clientId = process.env.PAYPAL_CLIENT_ID;
+  let clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  let mode = process.env.PAYPAL_MODE || "sandbox";
+
+  // If env vars missing, try database
+  if (!clientId || !clientSecret) {
+    const dbClientId = await ctx.runQuery(internal.paypal._getSettingByKey, { key: "PAYPAL_CLIENT_ID" });
+    const dbClientSecret = await ctx.runQuery(internal.paypal._getSettingByKey, { key: "PAYPAL_CLIENT_SECRET" });
+    const dbMode = await ctx.runQuery(internal.paypal._getSettingByKey, { key: "PAYPAL_MODE" });
+    if (dbClientId) clientId = dbClientId;
+    if (dbClientSecret) clientSecret = dbClientSecret;
+    if (dbMode) mode = dbMode;
+  }
+
   if (!clientId || !clientSecret) {
     throw new Error("PayPal credentials not configured");
   }
 
-  const baseUrl = process.env.PAYPAL_MODE === "live"
+  return { clientId, clientSecret, mode };
+}
+
+/**
+ * Helper: get PayPal access token
+ */
+async function getPayPalAccessToken(ctx: any): Promise<string> {
+  const { clientId, clientSecret, mode } = await getPayPalCredentials(ctx);
+
+  const baseUrl = mode === "live"
     ? "https://api-m.paypal.com"
     : "https://api-m.sandbox.paypal.com";
 
@@ -39,6 +93,8 @@ async function getPayPalAccessToken(): Promise<string> {
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error("PayPal token error:", errorText);
     throw new Error("Failed to get PayPal access token");
   }
 
@@ -46,8 +102,8 @@ async function getPayPalAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-function getBaseUrl(): string {
-  return process.env.PAYPAL_MODE === "live"
+function getBaseUrl(mode: string): string {
+  return mode === "live"
     ? "https://api-m.paypal.com"
     : "https://api-m.sandbox.paypal.com";
 }
@@ -71,8 +127,9 @@ export const createOrder = action({
     const name = PLAN_NAMES[plan];
 
     try {
-      const accessToken = await getPayPalAccessToken();
-      const baseUrl = getBaseUrl();
+      const { mode } = await getPayPalCredentials(ctx);
+      const accessToken = await getPayPalAccessToken(ctx);
+      const baseUrl = getBaseUrl(mode);
 
       const response = await fetch(`${baseUrl}/v2/checkout/orders`, {
         method: "POST",
@@ -127,8 +184,9 @@ export const captureOrder = action({
     if (!userId) return { success: false, error: "Not authenticated" };
 
     try {
-      const accessToken = await getPayPalAccessToken();
-      const baseUrl = getBaseUrl();
+      const { mode } = await getPayPalCredentials(ctx);
+      const accessToken = await getPayPalAccessToken(ctx);
+      const baseUrl = getBaseUrl(mode);
 
       const response = await fetch(
         `${baseUrl}/v2/checkout/orders/${orderId}/capture`,
@@ -184,7 +242,7 @@ export const captureOrder = action({
 });
 
 /**
- * Check if PayPal is configured
+ * Check if PayPal is configured (checks env vars + database)
  */
 export const isConfigured = action({
   args: {},
@@ -192,12 +250,41 @@ export const isConfigured = action({
     configured: v.boolean(),
     clientId: v.union(v.string(), v.null()),
   }),
-  handler: async () => {
-    const clientId = process.env.PAYPAL_CLIENT_ID;
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-    return {
-      configured: !!(clientId && clientSecret),
-      clientId: clientId || null,
-    };
+  handler: async (ctx) => {
+    try {
+      const { clientId } = await getPayPalCredentials(ctx);
+      return { configured: true, clientId };
+    } catch {
+      return { configured: false, clientId: null };
+    }
+  },
+});
+
+/**
+ * Admin: store PayPal credentials in the database
+ * This is an alternative to env vars for deployments where env vars can't be set
+ */
+export const setCredentials = action({
+  args: {
+    clientId: v.string(),
+    clientSecret: v.string(),
+    mode: v.union(v.literal("sandbox"), v.literal("live")),
+  },
+  returns: v.object({ success: v.boolean(), error: v.optional(v.string()) }),
+  handler: async (ctx, { clientId, clientSecret, mode }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { success: false, error: "Not authenticated" };
+
+    // Check if user is admin
+    const profile = await ctx.runQuery(internal.admin.getProfileInternal, { userId });
+    if (!profile || profile.role !== "admin") {
+      return { success: false, error: "Admin access required" };
+    }
+
+    await ctx.runMutation(internal.paypal._upsertSetting, { key: "PAYPAL_CLIENT_ID", value: clientId });
+    await ctx.runMutation(internal.paypal._upsertSetting, { key: "PAYPAL_CLIENT_SECRET", value: clientSecret });
+    await ctx.runMutation(internal.paypal._upsertSetting, { key: "PAYPAL_MODE", value: mode });
+
+    return { success: true };
   },
 });

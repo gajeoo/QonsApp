@@ -2,7 +2,7 @@ import { Lock, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
-import { useFeatureAccess, FEATURE_REQUIRED_PLAN } from "@/hooks/useFeatureAccess";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 interface FeatureGateProps {
   feature: string;
@@ -26,7 +26,7 @@ export function FeatureGate({ feature, children, fallback }: FeatureGateProps) {
   // If custom fallback, show that
   if (fallback) return <>{fallback}</>;
 
-  const requiredPlan = FEATURE_REQUIRED_PLAN[feature] || "Starter";
+  const requiredPlan = "Premium";
 
   return (
     <div className="flex items-center justify-center min-h-[400px] p-8">
@@ -55,12 +55,26 @@ export function FeatureGate({ feature, children, fallback }: FeatureGateProps) {
  * Trial banner shown at top of dashboard when user is on trial
  */
 export function TrialBanner() {
-  const { isOnTrial, trialDaysRemaining, hasAccess, currentPlan } = useFeatureAccess();
+  const { isOnTrial, trialDaysRemaining, hasAccess, currentPlan, isSubAccount } = useFeatureAccess();
 
+  // If user has access and is NOT on trial (i.e., paid subscriber), hide everything
+  if (hasAccess && !isOnTrial) return null;
+  // Legacy check
   if (!isOnTrial && hasAccess) return null;
 
   if (!hasAccess && currentPlan === "none") {
-    // Trial expired
+    // Sub-account: org lost access
+    if (isSubAccount) {
+      return (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 flex items-center gap-4">
+          <div>
+            <p className="font-semibold text-amber-800 dark:text-amber-200 text-sm">Organization subscription inactive</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Contact your organization administrator to restore access</p>
+          </div>
+        </div>
+      );
+    }
+    // Independent user: trial expired
     return (
       <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex items-center justify-between gap-4">
         <div>

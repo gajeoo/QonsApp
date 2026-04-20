@@ -20,6 +20,7 @@ const schema = defineSchema({
     invitedBy: v.optional(v.id("users")), // who invited this user
     organizationUserId: v.optional(v.id("users")), // main account they belong to (for workers/managers)
     isActive: v.optional(v.boolean()), // admin can pause/deactivate users
+    allowedFeatures: v.optional(v.array(v.string())), // manager-restricted features (if set, only these are accessible)
   })
     .index("by_userId", ["userId"])
     .index("by_email", ["email"])
@@ -574,6 +575,77 @@ const schema = defineSchema({
     .index("by_userId", ["userId"])
     .index("by_amenityId", ["amenityId"])
     .index("by_status", ["status"]),
+
+  // ========== CHAT SYSTEM (AI + Admin) ==========
+  chatConversations: defineTable({
+    visitorId: v.string(), // anonymous session ID or user ID
+    visitorName: v.optional(v.string()),
+    visitorEmail: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("closed"),
+      v.literal("waiting_admin"), // visitor asked for human help
+    ),
+    lastMessageAt: v.number(),
+    unreadByAdmin: v.number(), // count of unread messages
+    assignedAdminId: v.optional(v.id("users")),
+    source: v.union(v.literal("widget"), v.literal("dashboard")),
+    metadata: v.optional(v.string()), // JSON for page URL etc.
+  })
+    .index("by_visitorId", ["visitorId"])
+    .index("by_status", ["status"])
+    .index("by_lastMessageAt", ["lastMessageAt"]),
+
+  chatMessages: defineTable({
+    conversationId: v.id("chatConversations"),
+    role: v.union(
+      v.literal("visitor"),
+      v.literal("ai"),
+      v.literal("admin"),
+    ),
+    content: v.string(),
+    senderName: v.optional(v.string()),
+  })
+    .index("by_conversationId", ["conversationId"]),
+
+  // ========== TASKS (Delegation) ==========
+  tasks: defineTable({
+    userId: v.id("users"), // creator
+    assignedToUserId: v.optional(v.id("users")),
+    assignedToStaffId: v.optional(v.id("staff")),
+    propertyId: v.optional(v.id("properties")),
+    title: v.string(),
+    description: v.optional(v.string()),
+    priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high"), v.literal("urgent")),
+    status: v.union(
+      v.literal("todo"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("cancelled"),
+    ),
+    dueDate: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+    category: v.optional(v.union(
+      v.literal("maintenance"),
+      v.literal("inspection"),
+      v.literal("cleaning"),
+      v.literal("administrative"),
+      v.literal("hoa"),
+      v.literal("other"),
+    )),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_assignedToUserId", ["assignedToUserId"])
+    .index("by_status", ["status"])
+    .index("by_propertyId", ["propertyId"]),
+
+  // ========== APP SETTINGS (key-value store) ==========
+  appSettings: defineTable({
+    key: v.string(),
+    value: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_key", ["key"]),
 });
 
 export default schema;

@@ -10,6 +10,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import {
   AboutPage,
   AccountPausedPage,
+  AdminChatPage,
   AdminDashboardPage,
   AdminLeadsPage,
   AdminSubscribersPage,
@@ -97,6 +98,7 @@ function App() {
                   element={<AdminSubscribersPage />}
                 />
                 <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/chat" element={<AdminChatPage />} />
               </Route>
             </Route>
           </Route>
