@@ -6,13 +6,15 @@ import { internal } from "./_generated/api";
 declare const process: { env: Record<string, string | undefined> };
 
 const PLAN_PRICES: Record<string, number> = {
-  starter: 49,
-  pro: 149,
+  starter: 49.99,
+  pro: 49.99,
+  premium: 49.99,
 };
 
 const PLAN_NAMES: Record<string, string> = {
-  starter: "Starter Plan",
-  pro: "Professional Plan",
+  starter: "QuonsApp Premium",
+  pro: "QuonsApp Premium",
+  premium: "QuonsApp Premium",
 };
 
 // ========== Internal helpers to read config from DB ==========
@@ -141,7 +143,7 @@ export const createOrder = action({
           intent: "CAPTURE",
           purchase_units: [
             {
-              description: `QonsApp ${name} - Monthly Subscription`,
+              description: `${name} - Monthly Subscription`,
               amount: {
                 currency_code: "USD",
                 value: price.toFixed(2),

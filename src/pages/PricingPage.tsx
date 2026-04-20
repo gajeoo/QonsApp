@@ -11,7 +11,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { PayPalCheckoutButton } from "@/components/PayPalButton";
 import { APP_NAME } from "@/lib/constants";
@@ -66,7 +65,7 @@ const faqs = [
   {
     question: "What payment methods do you accept?",
     answer:
-      "We accept all major credit cards (Visa, Mastercard, American Express) through Stripe, as well as PayPal.",
+      "We accept payments securely through PayPal. You can use your PayPal balance, linked bank account, or any card connected to your PayPal account.",
   },
 ];
 
@@ -76,10 +75,8 @@ export function PricingPage() {
     api.subscriptions.getMine,
     isAuthenticated ? {} : "skip",
   );
-  const createCheckout = useAction(api.stripe.createCheckoutSession);
   const checkPayPal = useAction(api.paypal.isConfigured);
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
   const [paypalClientId, setPaypalClientId] = useState<string | null>(
     import.meta.env.VITE_PAYPAL_CLIENT_ID || null,
   );
@@ -92,27 +89,7 @@ export function PricingPage() {
     }).catch(() => {});
   }, []);
 
-  const handleSubscribe = async () => {
-    if (!isAuthenticated) {
-      navigate("/signup");
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const result = await createCheckout({ plan: "starter" });
-      if (result.url) {
-        window.location.href = result.url;
-      } else {
-        toast.error(result.error || "Failed to start checkout");
-      }
-    } catch {
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const hasActiveSub = subscription && subscription.status === "active";
+  const hasActiveSub = subscription && (subscription.status === "active" || subscription.status === "trialing");
 
   return (
     <div className="flex-1 flex flex-col">
@@ -176,27 +153,26 @@ export function PricingPage() {
                 </Button>
               ) : (
                 <div className="space-y-3">
-                  <Button
-                    size="lg"
-                    className="w-full bg-sky-500 hover:bg-sky-600 text-white h-13 text-base font-semibold rounded-xl"
-                    onClick={handleSubscribe}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <><Loader2 className="size-4 animate-spin" /> Processing...</>
-                    ) : (
-                      <>{isAuthenticated ? "Subscribe Now" : "Start Free 14-Day Trial"} <ArrowRight className="size-4 ml-2" /></>
-                    )}
-                  </Button>
-                  {isAuthenticated && paypalClientId && (
+                  {!isAuthenticated ? (
+                    <Button
+                      size="lg"
+                      className="w-full bg-sky-500 hover:bg-sky-600 text-white h-13 text-base font-semibold rounded-xl"
+                      asChild
+                    >
+                      <Link to="/signup">
+                        Start Free 14-Day Trial <ArrowRight className="size-4 ml-2" />
+                      </Link>
+                    </Button>
+                  ) : paypalClientId ? (
                     <>
                       {!showPayPal ? (
-                        <button
-                          className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                        <Button
+                          size="lg"
+                          className="w-full bg-[#0070ba] hover:bg-[#003087] text-white h-13 text-base font-semibold rounded-xl"
                           onClick={() => setShowPayPal(true)}
                         >
-                          or pay with PayPal
-                        </button>
+                          Subscribe with PayPal <ArrowRight className="size-4 ml-2" />
+                        </Button>
                       ) : (
                         <div className="pt-1">
                           <PayPalCheckoutButton
@@ -207,6 +183,14 @@ export function PricingPage() {
                         </div>
                       )}
                     </>
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="w-full bg-sky-500 hover:bg-sky-600 text-white h-13 text-base font-semibold rounded-xl"
+                      disabled
+                    >
+                      <Loader2 className="size-4 animate-spin mr-2" /> Loading payment...
+                    </Button>
                   )}
                 </div>
               )}

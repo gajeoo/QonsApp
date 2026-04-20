@@ -1,23 +1,9 @@
-import { useQuery } from "convex/react";
-import { useConvexAuth } from "convex/react";
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { api } from "../../convex/_generated/api";
 
 export function CheckoutSuccessPage() {
-  const { isAuthenticated } = useConvexAuth();
-  const subscription = useQuery(
-    api.subscriptions.getMine,
-    isAuthenticated ? {} : "skip",
-  );
-
-  const planName =
-    subscription?.plan === "pro"
-      ? "Professional"
-      : subscription?.plan === "enterprise"
-        ? "Enterprise"
-        : "Starter";
+  const planName = "Premium";
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-20 md:py-32">
@@ -32,7 +18,7 @@ export function CheckoutSuccessPage() {
 
         <div>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">
-            Welcome to QonsApp!
+            Welcome to QuonsApp!
           </h1>
           <p className="text-lg text-muted-foreground">
             Your{" "}

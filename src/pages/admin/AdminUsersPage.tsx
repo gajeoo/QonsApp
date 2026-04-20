@@ -491,7 +491,7 @@ export function AdminUsersPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                This assigns the plan directly without Stripe billing. Use for comps or manual management.
+                This assigns the plan directly without billing. Use for comps or manual management.
               </p>
             </div>
           )}

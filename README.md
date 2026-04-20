@@ -309,7 +309,7 @@ When integrating a new service (e.g., OpenAI, Stripe):
 ```bash
 # Set on Convex deployment (takes effect immediately)
 bunx convex env set OPENAI_API_KEY "sk-..."
-bunx convex env set STRIPE_SECRET_KEY "sk_live_..."
+bunx convex env set STRIPE_SECRET_KEY "your_stripe_secret_key_here"
 ```
 
 Then use in your Convex functions:

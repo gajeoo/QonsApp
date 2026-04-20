@@ -1,4 +1,4 @@
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -11,13 +11,12 @@ import {
   ExternalLink,
   FileSpreadsheet,
   Gavel,
-  Loader2,
   Settings,
   Sparkles,
   TreePalm,
   Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +27,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { TrialBanner } from "@/components/FeatureGate";
 
@@ -41,8 +39,6 @@ export function DashboardPage() {
   const shiftStats = useQuery(api.shifts.getStats);
   const timeStats = useQuery(api.timeTracking.getStats, {});
   const ensureProfile = useMutation(api.admin.ensureProfile);
-  const createPortal = useAction(api.stripe.createPortalSession);
-  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     if (user) { ensureProfile().catch(() => {}); }
@@ -60,19 +56,7 @@ export function DashboardPage() {
   const completedSteps = setupSteps.filter((s) => s.done).length;
   const progressPercent = Math.round((completedSteps / setupSteps.length) * 100);
 
-  const planName = subscription?.plan === "pro" ? "Professional"
-    : subscription?.plan === "enterprise" ? "Enterprise"
-    : subscription?.plan === "starter" ? "Starter" : null;
-
-  const handleManageSubscription = async () => {
-    setPortalLoading(true);
-    try {
-      const result = await createPortal();
-      if (result.url) { window.location.href = result.url; }
-      else { toast.error(result.error || "Failed to open billing portal"); }
-    } catch { toast.error("Something went wrong"); }
-    finally { setPortalLoading(false); }
-  };
+  const planName = "Premium";
 
   const renewsOn = subscription?.currentPeriodEnd
     ? new Date(subscription.currentPeriodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
@@ -89,7 +73,7 @@ export function DashboardPage() {
           Welcome{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
         </h1>
         <p className="text-muted-foreground mt-1">
-          {hasSubscription ? "Manage your QonsApp operations from here" : "Get started with QonsApp"}
+          {hasSubscription ? "Manage your QuonsApp operations from here" : "Get started with QuonsApp"}
         </p>
       </div>
 
@@ -98,7 +82,7 @@ export function DashboardPage() {
         <Card className="bg-gradient-to-br from-teal/5 to-transparent border-teal/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2"><Sparkles className="size-5 text-teal" /> Getting Started</CardTitle>
-            <CardDescription>Complete these steps to get the most out of QonsApp</CardDescription>
+            <CardDescription>Complete these steps to get the most out of QuonsApp</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3 mb-4">
@@ -160,8 +144,8 @@ export function DashboardPage() {
                     {subscription.status === "active" ? "Active" : subscription.status.replace("_", " ")}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="w-full" onClick={handleManageSubscription} disabled={portalLoading}>
-                  {portalLoading ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />} Manage Billing
+                <Button variant="outline" size="sm" className="w-full" asChild>
+                  <Link to="/settings"><ExternalLink className="size-4" /> Manage Billing</Link>
                 </Button>
               </div>
             ) : (
